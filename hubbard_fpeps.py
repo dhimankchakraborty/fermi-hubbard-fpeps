@@ -12,8 +12,8 @@ t = 1.0
 U = 10.0
 mu = 0.0
 dtau = 0.05
-n_steps = 40
-D_target = 16       # Target bond dimension
+n_steps = 100
+D_target = 24       # Target bond dimension
 chi = 5 * D_target
 
 
