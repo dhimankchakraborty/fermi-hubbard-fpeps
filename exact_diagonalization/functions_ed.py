@@ -1,10 +1,6 @@
 import numpy as np
 import scipy.sparse as sparse
-from scipy.sparse.linalg import eigsh
 from itertools import combinations
-import time
-import netket as nk
-import netket.experimental as nkx
 
 
 
