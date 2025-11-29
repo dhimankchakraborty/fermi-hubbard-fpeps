@@ -1,12 +1,17 @@
 import torch
+from scipy.sparse.linalg import eigsh
+import numpy as np
 import yastn
 import yastn.tn.fpeps as fpeps
 import yastn.operators as op_mod
 from tqdm import tqdm
 from functions_fpeps import *
+from functions_ed import *
 
-# 1. Set PyTorch CPU Parallelism
-# Set to physical core count for optimal performance (avoiding hyperthreading overhead)
+
+
+
+
 NUM_THREADS = 8 
 torch.set_num_threads(NUM_THREADS)
 
@@ -16,12 +21,11 @@ U = 10.0
 mu = 0.0
 dtau = 0.05
 n_steps = 100
-D_target = 24
+D_target = 8
 chi = 5 * D_target
 
-# 2. Initialize Operators with PyTorch Backend
-# Explicitly define backend and precision (physics simulations usually require float64)
-ops = op_mod.SpinfulFermions(sym="U1xU1", backend='torch', default_dtype='float64')
+
+ops = op_mod.SpinfulFermions(sym="U1xU1xZ2", backend='torch', default_dtype='float64')
 
 I = ops.I()
 c_up, cdag_up, n_up = ops.c('u'), ops.cp('u'), ops.n('u')
@@ -51,7 +55,7 @@ gates = fpeps.gates.distribute(
     gates_local=g_loc
 )
 
-env_ntu = fpeps.EnvNTU(psi, which="NN")
+env_ntu = fpeps.EnvNTU(psi, which="NN++")
 opts_svd_ntu = {
     "D_total": D_target,
 }
@@ -99,7 +103,7 @@ for info in ctm_iter:
     E_kin_site = - z_eff * t * (ev_cdagc_up_mean + ev_cdagc_dn_mean)
     E_loc_site = U * ev_loc_mean
     
-    # 3. Ensure scalar extraction for comparison if returns are 0-d tensors
+
     energy = E_kin_site + E_loc_site
 
     if abs(energy - energy_old) < tol_energy:
@@ -114,7 +118,17 @@ n_dn_mean = mean_dict_values(ev_n_dn)
 double_occ = env_ctm.measure_1site(n_up @ n_dn)
 double_occ_mean = mean_dict_values(double_occ)
 
-print(f"Ground State Energy per Site: {energy}") # type: ignore
+
+H_sparse_shifted = build_hamiltonian_shifted(L_x, L_y, (L_x * L_y) // 2, (L_x * L_y) // 2, t, U, use_pbc=False)
+eigenvalues_shifted, _ = eigsh(H_sparse_shifted, k=1, which='SA')
+ed_energy = eigenvalues_shifted[0] / (L_x * L_y)
+
+
+print("----------------------------------------------------------------------------")
+print(f"Ground State Energy per Site using fPEPS: {energy}") # type: ignore
+print(f"Exact Ground State Energy per Site: {ed_energy}")
+print(f"Error in Energy: {((energy - ed_energy) * 100 / ed_energy): .5f} %") # type: ignore
+("----------------------------------------------------------------------------")
 print(f"<n_up> ≈ {n_up_mean: .10f}")
 print(f"<n_dn> ≈ {n_dn_mean: .10f}")
 print(f"Total Filling (<n_up + n_dn>): {n_up_mean + n_dn_mean: .10f}")

@@ -6,9 +6,9 @@ from functions_ed import *
 
 
 
-L_x, L_y = 2, 2
+L_x, L_y = 3, 2
 N_sites = L_x * L_y
-N_up, N_down = 2, 2 # Half-filling
+N_up, N_down = 3, 3 # Half-filling
 t = 1.0
 U = 10 
 
