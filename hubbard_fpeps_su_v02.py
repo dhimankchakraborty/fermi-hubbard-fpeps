@@ -20,10 +20,10 @@ t = 1.0
 U = 10.0
 mu = 0.0
 dtau = 0.05
-n_steps = 30
-D_target = 60
+n_steps = 20
+D_target = 4
 chi = 5 * D_target
-output_no = 7
+output_no = 9
 
 
 ops = op_mod.SpinfulFermions(sym="U1xU1", backend='torch', default_dtype='float64')
