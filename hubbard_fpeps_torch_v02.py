@@ -20,10 +20,10 @@ t = 1.0
 U = 10.0
 mu = 0.0
 dtau = 0.05
-n_steps = 400
-D_target = 4
-chi = 10 * D_target
-output_no = 1
+n_steps = 30
+D_target = 60
+chi = 5 * D_target
+output_no = 7
 
 
 ops = op_mod.SpinfulFermions(sym="U1xU1", backend='torch', default_dtype='float64')
@@ -83,7 +83,7 @@ for step in tqdm(range(n_steps)):
         max_sweeps=50,
     )
 
-    energy_old = 0.0
+
     tol_energy = 1e-7
     sites_list = list(geometry.sites())
     bonds_list = list(geometry.bonds())
