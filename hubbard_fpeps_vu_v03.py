@@ -22,7 +22,8 @@ t = 1.0
 U = 10.0
 mu = 0.0
 learning_rate = 0.01
-n_var_steps   = 1
+n_var_steps = 2
+ntu_steps = 10
 D_target = 4
 chi = 5 * D_target
 output_no = 8
@@ -36,6 +37,15 @@ config_kwargs = {
     "default_dtype": "float64",
     "device": "cpu"
 }
+
+
+print('-'*80)
+H_sparse_shifted = build_hamiltonian_shifted(L_x, L_y, (L_x * L_y) // 2, (L_x * L_y) // 2, t, U, use_pbc=False)
+eigenvalues_shifted, _ = eigsh(H_sparse_shifted, k=1, which='SA')
+ed_energy_per_site = eigenvalues_shifted[0] / (L_x * L_y)
+print(f"Exact Ground State Energy per Site: {ed_energy_per_site}")
+print('-'*80)
+
 
 ops = yastn.operators.SpinfulFermions(sym="U1xU1", **config_kwargs)
 
@@ -57,15 +67,15 @@ for (x, y) in geometry.sites():
 
 psi = fpeps.product_peps(geometry=geometry, vectors=vectors)
 
-for site in geometry.sites():
-    psi[site].requires_grad_(True)
-
+# print('-'*80)
 # # Gradient Check (Working Correctly)
 # for site in geometry.sites():
 #     if not psi[site].requires_grad:
 #         print(f"Warning: Site {site} is not tracking gradients!")
 #     else:
 #         print(f"Site {site} is tracking gradients!")
+# print('-'*80)
+
 
 g_hop_up = fpeps.gates.gate_nn_hopping(t, dtau / 2, I, c_up, cdag_up)
 g_hop_dn = fpeps.gates.gate_nn_hopping(t, dtau / 2, I, c_dn, cdag_dn)
@@ -86,71 +96,150 @@ opts_svd_ntu = {
 # print('-'*80)
 
 infoss = []
-for step in tqdm(range(10)):
+for step in tqdm(range(ntu_steps)):
     infos = fpeps.evolution_step_(env_ntu, gates, opts_svd=opts_svd_ntu)
     infoss.append(infos)
 
 # print(psi)
 
+for site in geometry.sites():
+    psi[site].requires_grad_(True)
+
+
+# print('-'*80)
 # # Gradient Check (Working Correctly)
 # for site in geometry.sites():
 #     if not psi[site].requires_grad:
 #         print(f"Warning: Site {site} is not tracking gradients!")
 #     else:
 #         print(f"Site {site} is tracking gradients!")
-
-for site in geometry.sites():
-    print(psi[site])
+# print('-'*80)
 
 
-# for it in range(1, n_var_steps + 1):
+# print('-'*80)
+# for site in geometry.sites():
+#     print(psi[site])
+# print('-'*80)
 
-#     env_ctm = fpeps.EnvCTM(psi, init="eye")
+
+env_ctm = fpeps.EnvCTM(psi, init="eye")
+opts_svd_ctm = {
+    "D_total": chi,
+    "tol": tol_ctm
+    # 'tol_block' can also be set if needed
+}
+ctm_generator = env_ctm.ctmrg_(opts_svd=opts_svd_ctm, iterator=True, max_sweeps=max_ctm_sweeps)
+
+
+# # Gradient Check Done Here (Working Correctly)
+
+nn_op = (n_up - I / 2) @ (n_dn - I / 2)
+ev_nn_dict = env_ctm.measure_1site(nn_op)
+
+ev_cdagc_up_dict = env_ctm.measure_nn(cdag_up, c_up)
+ev_cdagc_dn_dict = env_ctm.measure_nn(cdag_dn, c_dn)
+
+ev_nn_values = list(ev_nn_dict.values())
+ev_nn = torch.stack(ev_nn_values).mean()
+
+ev_cdagc_up_values = list(ev_cdagc_up_dict.values())
+ev_cdagc_up = torch.stack(ev_cdagc_up_values).mean()
+
+ev_cdagc_dn_values = list(ev_cdagc_dn_dict.values())
+ev_cdagc_dn = torch.stack(ev_cdagc_dn_values).mean()
+
+energy_yastn = -2.0 * t * (ev_cdagc_up + ev_cdagc_dn) + U * ev_nn
+
+print('-'*80)
+print(f"Energy after {ntu_steps} steps of simple update: {energy_yastn.data}")
+print(f"Error: {abs((energy_yastn.data - ed_energy_per_site) * 100 / ed_energy_per_site)} %")
+print('-'*80)
+
+
+# print('-'*80)
+# # Gradient Check (Working Correctly)
+# for site in geometry.sites():
+#     if not psi[site].requires_grad:
+#         print(f"Warning: Site {site} is not tracking gradients!")
+#     else:
+#         print(f"Site {site} is tracking gradients!")
+# print('-'*80)
+
+# print(energy_yastn)
+
+
+
+for it in range(1, n_var_steps + 1):
+    energy_yastn.backward()
+
+    with torch.no_grad():
+        for site in geometry.sites():
+            A = psi[site]
+            g = psi[site].grad()
+            # print(g)
+            if g.data is None:
+                continue                         # some sites might not contribute (shouldn't happen, but safe)
+
+            # print(type(learning_rate))
+            # print(type(g.data))
+            psi[site] = psi[site] - learning_rate * g
+    
+    # print(psi)
+
+    env_ctm = fpeps.EnvCTM(psi, init="eye")
 
 #     # # Gradient Check Done Here (Working Correctly)
 
-#     opts_svd_ctm = {
-#         "D_total": chi,
-#         "tol": tol_ctm
-#         # 'tol_block' can also be set if needed
-#     }
+    # opts_svd_ctm = {
+    #     "D_total": chi,
+    #     "tol": tol_ctm
+    #     # 'tol_block' can also be set if needed
+    # }
 
-#     ctm_generator = env_ctm.ctmrg_(opts_svd=opts_svd_ctm, iterator=True, max_sweeps=max_ctm_sweeps)
+    ctm_generator = env_ctm.ctmrg_(opts_svd=opts_svd_ctm, iterator=True, max_sweeps=max_ctm_sweeps)
 
 #     for info in ctm_generator:
 #         pass  # This executes the loop steps one by one
 
 #     # # Gradient Check Done Here (Working Correctly)
 
-#     nn_op = (n_up - I / 2) @ (n_dn - I / 2)
-#     ev_nn_dict = env_ctm.measure_1site(nn_op)
+    nn_op = (n_up - I / 2) @ (n_dn - I / 2)
+    ev_nn_dict = env_ctm.measure_1site(nn_op)
 
-#     # for key in ev_nn_dict:
-#     #     print(f"{key} : {ev_nn_dict[key]}")
+    # for key in ev_nn_dict:
+    #     print(f"{key} : {ev_nn_dict[key]}")
 
-#     # print(ev_nn_dict)
+    # print(ev_nn_dict)
 
-#     ev_cdagc_up_dict = env_ctm.measure_nn(cdag_up, c_up)
-#     ev_cdagc_dn_dict = env_ctm.measure_nn(cdag_dn, c_dn)
+    ev_cdagc_up_dict = env_ctm.measure_nn(cdag_up, c_up)
+    ev_cdagc_dn_dict = env_ctm.measure_nn(cdag_dn, c_dn)
 
-#     # print(ev_cdagc_up_dict)
-#     # print(ev_cdagc_dn_dict)
-#     # # Gradient Check Done Here (Working Correctly)
+    # print(ev_cdagc_up_dict)
+    # print(ev_cdagc_dn_dict)
+    # # Gradient Check Done Here (Working Correctly)
 
-#     ev_nn_values = list(ev_nn_dict.values())
-#     ev_nn = torch.stack(ev_nn_values).mean()
+    ev_nn_values = list(ev_nn_dict.values())
+    ev_nn = torch.stack(ev_nn_values).mean()
 
-#     ev_cdagc_up_values = list(ev_cdagc_up_dict.values())
-#     ev_cdagc_up = torch.stack(ev_cdagc_up_values).mean()
+    ev_cdagc_up_values = list(ev_cdagc_up_dict.values())
+    ev_cdagc_up = torch.stack(ev_cdagc_up_values).mean()
 
-#     ev_cdagc_dn_values = list(ev_cdagc_dn_dict.values())
-#     ev_cdagc_dn = torch.stack(ev_cdagc_dn_values).mean()
+    ev_cdagc_dn_values = list(ev_cdagc_dn_dict.values())
+    ev_cdagc_dn = torch.stack(ev_cdagc_dn_values).mean()
 
-#     print(ev_nn)
-#     print(ev_cdagc_dn)
-#     print(ev_cdagc_up)
+    # print(ev_nn)
+    # print(ev_cdagc_dn)
+    # print(ev_cdagc_up)
 
-#     energy_yastn = -2.0 * t * (ev_cdagc_up + ev_cdagc_dn) + U * ev_nn
+    energy_yastn = -2.0 * t * (ev_cdagc_up + ev_cdagc_dn) + U * ev_nn
+
+
+    print('-'*80)
+    print(f"Energy after {it} steps of variational update: {energy_yastn.data}")
+    print(f"Error: {abs((energy_yastn.data - ed_energy_per_site) * 100 / ed_energy_per_site)} %")
+    print('-'*80)
+
+    print(energy_yastn)
 
 #     energy_yastn.backward()
 
