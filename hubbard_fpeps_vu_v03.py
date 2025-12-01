@@ -82,15 +82,25 @@ opts_svd_ntu = {
     "D_total": D_target,
 }
 
-print(psi)
-print('-'*80)
+# print(psi)
+# print('-'*80)
 
 infoss = []
 for step in tqdm(range(10)):
     infos = fpeps.evolution_step_(env_ntu, gates, opts_svd=opts_svd_ntu)
     infoss.append(infos)
 
-print(psi)
+# print(psi)
+
+# # Gradient Check (Working Correctly)
+# for site in geometry.sites():
+#     if not psi[site].requires_grad:
+#         print(f"Warning: Site {site} is not tracking gradients!")
+#     else:
+#         print(f"Site {site} is tracking gradients!")
+
+for site in geometry.sites():
+    print(psi[site])
 
 
 # for it in range(1, n_var_steps + 1):
