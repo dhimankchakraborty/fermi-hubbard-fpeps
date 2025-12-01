@@ -22,7 +22,7 @@ t = 1.0
 U = 10.0
 mu = 0.0
 learning_rate = 0.01
-n_var_steps   = 10
+n_var_steps   = 2
 D_target = 4
 chi = 5 * D_target
 output_no = 8
@@ -78,19 +78,32 @@ for it in range(1, n_var_steps + 1):
 
     ctm_generator = env_ctm.ctmrg_(opts_svd=opts_svd_ctm, iterator=True, max_sweeps=max_ctm_sweeps)
 
+    for info in ctm_generator:
+        pass  # This executes the loop steps one by one
+
     nn_op = (n_up - I / 2) @ (n_dn - I / 2)
     ev_nn_dict = env_ctm.measure_1site(nn_op)
-    ev_nn = mean_dict_values(ev_nn_dict)
+    # ev_nn = mean_dict_values(ev_nn_dict)
     ev_cdagc_up_dict = env_ctm.measure_nn(cdag_up, c_up)
     ev_cdagc_dn_dict = env_ctm.measure_nn(cdag_dn, c_dn)
 
-    ev_cdagc_up = mean_dict_values(ev_cdagc_up_dict)
-    ev_cdagc_dn = mean_dict_values(ev_cdagc_dn_dict)
+    # ev_cdagc_up = mean_dict_values(ev_cdagc_up_dict)
+    # ev_cdagc_dn = mean_dict_values(ev_cdagc_dn_dict)
+
+    ev_nn_values = list(ev_nn_dict.values())
+    ev_nn = torch.stack(ev_nn_values).mean() # Keeps the graph alive
+
+    ev_cdagc_up_values = list(ev_cdagc_up_dict.values())
+    ev_cdagc_up = torch.stack(ev_cdagc_up_values).mean()
+
+    ev_cdagc_dn_values = list(ev_cdagc_dn_dict.values())
+    ev_cdagc_dn = torch.stack(ev_cdagc_dn_values).mean()
 
     energy_yastn = -2.0 * t * (ev_cdagc_up + ev_cdagc_dn) + U * ev_nn
 
     energy_yastn.requires_grad_(True)
     # print(energy_yastn)
+
     energy_yastn.backward()
 
     # torch.no_grad()
