@@ -12,12 +12,12 @@ t = 1.0
 U = 10.0
 mu = 0.0
 dtau = 0.05
-n_steps = 100
-D_target = 24       # Target bond dimension
+n_steps = 20
+D_target = 4       # Target bond dimension
 chi = 5 * D_target
 
 
-ops = op_mod.SpinfulFermions(sym="U1xU1")
+ops = op_mod.SpinfulFermions(sym="U1xU1", backend='np')
 I = ops.I()
 c_up, cdag_up, n_up = ops.c('u'), ops.cp('u'), ops.n('u')
 c_dn, cdag_dn, n_dn = ops.c('d'), ops.cp('d'), ops.n('d')

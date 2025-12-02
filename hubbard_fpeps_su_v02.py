@@ -7,7 +7,7 @@ import yastn.operators as op_mod
 from tqdm import tqdm
 from functions_fpeps import *
 from functions_ed import *
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 NUM_THREADS = 8 
 torch.set_num_threads(NUM_THREADS)
@@ -26,7 +26,7 @@ chi = 5 * D_target
 output_no = 12
 
 
-ops = op_mod.SpinfulFermions(sym="U1xU1", backend='torch', default_dtype='float64')
+ops = op_mod.SpinfulFermions(sym="U1xU1", backend='np', default_dtype='float64')
 
 I = ops.I()
 c_up, cdag_up, n_up = ops.c('u'), ops.cp('u'), ops.n('u')
